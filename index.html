@@ -188,6 +188,7 @@ audio { display: none; }
 .et-altitude  { background: rgba(255,123,114,0.1); color: #ff7b72; border: 1px solid rgba(255,123,114,0.2); }
 .et-heading   { background: rgba(255,166,77,0.1);  color: #ffa64d; border: 1px solid rgba(255,166,77,0.2); }
 .et-frequency { background: rgba(63,185,80,0.1);   color: #3fb950; border: 1px solid rgba(63,185,80,0.2); }
+.et-clearance { background: rgba(188,140,255,0.1); color: #bc8cff; border: 1px solid rgba(188,140,255,0.2); }
 .badge { font-family: var(--mono); font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 3px; display: inline-block; }
 .b-crit  { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-border); }
 .b-equiv { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
@@ -281,6 +282,10 @@ audio { display: none; }
     <option value="1">Sample 02 — Equivalent · high WER (0.56), zero operational impact</option>
     <option value="2">Sample 03 — Altitude · low WER (0.06), critical altitude error</option>
     <option value="3">Sample 04 — Callsign · low WER (0.08), wrong flight number</option>
+    <option value="4">Sample 05 — Heading · low WER (0.13), critical digit-word error</option>
+    <option value="5">Sample 06 — Clearance · low WER (0.06), critical clearance omission</option>
+    <option value="6">Sample 07 — Callsign · low WER (0.11), wrong aircraft</option>
+    <option value="7">Sample 08 — Callsign · low WER (0.03), dropped wake-turbulence tag</option>
   </select>
 
   <!-- ── AUDIO CARD ─────────────────────────────────── -->
@@ -441,6 +446,50 @@ const SAMPLES = [
     hyp: "united <span class=\"w-err\">six fifty two</span> tango thank you for now track localizer inbound",
     errors: [
       { entity:"callsign", ec:"et-callsign", ref:"United 632", hyp:"United 652", type:"CRITICAL", tc:"b-crit", risk:"HIGH", rc:"b-crit" }
+    ]
+  },
+  {
+    audioSrc: "https://raw.githubusercontent.com/ttkairamkonda/FAA-Project/main/FAA-Heading.wav",
+    audioLabel: "FAA-Heading — FAA ARTCC",
+    wer: 0.13, bert: 0.97, cer: "CRITICAL", cerGood: false,
+    insight: "<strong>Fine-tuning cut WER by 87%, but changed the heading.</strong> The pretrained model garbled almost everything (WER 1.00) — the fine-tuned model cleaned it up to WER 0.13 and BERTScore 0.97. In doing so it substituted 'n' for 'med' in the heading callout. Lower error rate, wrong instruction.",
+    ref: "three thousand two seven zero <span class=\"tooltip-wrap w-err\">n four seven<span class=\"tooltip\"><span class=\"t-type\">CRITICAL &mdash; HEADING</span><span class=\"t-entity\">n four seven &rarr; med four seven &middot; wrong heading</span></span></span>",
+    hyp: "three thousand two seven zero <span class=\"w-err\">med four seven</span>",
+    errors: [
+      { entity:"heading", ec:"et-heading", ref:"n four seven", hyp:"med four seven", type:"CRITICAL", tc:"b-crit", risk:"MEDIUM", rc:"b-equiv" }
+    ]
+  },
+  {
+    audioSrc: "https://raw.githubusercontent.com/ttkairamkonda/FAA-Project/main/FAA-Clearance.wav",
+    audioLabel: "FAA-Clearance — FAA ARTCC",
+    wer: 0.06, bert: 0.99, cer: "CRITICAL", cerGood: false,
+    insight: "<strong>A dropped word erases a clearance.</strong> WER 0.06, BERTScore 0.99 — this looks like an almost-perfect transcription. But the very first word, 'cleared', is missing entirely. Without it, 'visual one zero left' reads as a runway assignment, not a clearance to fly the approach.",
+    ref: "<span class=\"tooltip-wrap w-err\">cleared<span class=\"tooltip\"><span class=\"t-type\">CRITICAL &mdash; CLEARANCE</span><span class=\"t-entity\">cleared &rarr; (dropped) &middot; clearance omitted</span></span></span> visual one zero left cleared to land one zero left american twenty two seventy one",
+    hyp: "visual one zero left cleared to land one zero left american twenty two seventy one",
+    errors: [
+      { entity:"clearance", ec:"et-clearance", ref:"cleared", hyp:"(omitted)", type:"CRITICAL", tc:"b-crit", risk:"HIGH", rc:"b-crit" }
+    ]
+  },
+  {
+    audioSrc: "https://raw.githubusercontent.com/ttkairamkonda/FAA-Project/main/FAA-Callsign-Swap.wav",
+    audioLabel: "FAA-Callsign-Swap — FAA ARTCC",
+    wer: 0.11, bert: 1.00, cer: "CRITICAL", cerGood: false,
+    insight: "<strong>WER of 0.11 hides a wrong aircraft.</strong> Only one word changed out of nine, and BERTScore rates the transcription 0.999 similar to the reference. But the callsign flipped from 'Compass' to 'Delta' — a speed reduction meant for one flight is now logged against a different one entirely.",
+    ref: "<span class=\"tooltip-wrap w-err\">compass<span class=\"tooltip\"><span class=\"t-type\">CRITICAL &mdash; CALLSIGN</span><span class=\"t-entity\">Compass &rarr; Delta &middot; wrong aircraft</span></span></span> seventeen fifty eight reduce speed two one zero",
+    hyp: "<span class=\"w-err\">delta</span> seventeen fifty eight reduce speed two one zero",
+    errors: [
+      { entity:"callsign", ec:"et-callsign", ref:"Compass", hyp:"Delta", type:"CRITICAL", tc:"b-crit", risk:"MEDIUM", rc:"b-equiv" }
+    ]
+  },
+  {
+    audioSrc: "https://raw.githubusercontent.com/ttkairamkonda/FAA-Project/main/FAA-Heavy-Omission.wav",
+    audioLabel: "FAA-Heavy-Omission — FAA ARTCC",
+    wer: 0.03, bert: 0.99, cer: "CRITICAL", cerGood: false,
+    insight: "<strong>Near-perfect transcription, but 'heavy' goes missing.</strong> WER 0.03, BERTScore 0.99 — by any standard metric this is a strong transcription of a long, repeated instruction. But the wake-turbulence designation 'heavy' is dropped from the first callsign mention, which can matter for the separation minima applied behind that aircraft.",
+    ref: "eva zero zero five <span class=\"tooltip-wrap w-err\">heavy<span class=\"tooltip\"><span class=\"t-type\">CRITICAL &mdash; CALLSIGN</span><span class=\"t-entity\">heavy &rarr; (dropped) &middot; wake-turbulence tag omitted</span></span></span> traffic two mile final minimum delay cross runway two five left turn left on alfa eva zero zero five heavy cross runway two five left left on alfa traffic two mile final",
+    hyp: "eva zero zero five traffic two mile final minimum delay cross runway two five left turn left on alfa eva zero zero five heavy cross runway two five left left on alfa traffic two mile final",
+    errors: [
+      { entity:"callsign", ec:"et-callsign", ref:"eva zero zero five heavy", hyp:"eva zero zero five", type:"CRITICAL", tc:"b-crit", risk:"MEDIUM", rc:"b-equiv" }
     ]
   }
 ];
